@@ -4,8 +4,10 @@ const createFiles = require('./fileCreater')
 
 const createManifest = response => {
   const masterZip = new JSZip()
+  const manifestVersion = response.manifest_version || 2
+
   const manifestJson = {
-    'manifest_version': 2,
+    'manifest_version': manifestVersion,
     'name': response.name.trim() || 'My extension',
     'description': response.description || 'description',
     'version': response.version || '1.1.1',
@@ -19,10 +21,17 @@ const createManifest = response => {
   createorPromises.push(createFiles.icon(zip))
 
   if (response.background_script) {
-    manifestJson.background = {
-      'scripts': ['background_script.js']
+    if (manifestVersion === 3) {
+      manifestJson.background = {
+        'service_worker': 'service_worker.js'
+      }
+      createorPromises.push(createFiles.sw(zip))
+    } else {
+      manifestJson.background = {
+        'scripts': ['background_script.js']
+      }
+      createorPromises.push(createFiles.bg(zip))
     }
-    createorPromises.push(createFiles.bg(zip))
   }
 
   if (response.content_script) {
@@ -35,26 +44,41 @@ const createManifest = response => {
     createorPromises.push(createFiles.cs(zip))
   }
 
-  if (response.browser_action) {
-    manifestJson.browser_action = {
-      'default_icon': {
-        '64': 'icons/icon.png'
-      },
-      'default_popup': 'browserAction/index.html',
-      'default_title': manifestJson.name
+  // For Manifest V3, browser_action and page_action are combined into action
+  if (manifestVersion === 3) {
+    if (response.browser_action || response.page_action) {
+      manifestJson.action = {
+        'default_icon': {
+          '64': 'icons/icon.png'
+        },
+        'default_popup': 'popup/index.html',
+        'default_title': manifestJson.name
+      }
+      createorPromises.push(createFiles.popup(zip, 'popup'))
     }
-    createorPromises.push(createFiles.popup(zip, 'browserAction'))
-  }
+  } else {
+    // Manifest V2: keep browser_action and page_action separate
+    if (response.browser_action) {
+      manifestJson.browser_action = {
+        'default_icon': {
+          '64': 'icons/icon.png'
+        },
+        'default_popup': 'browserAction/index.html',
+        'default_title': manifestJson.name
+      }
+      createorPromises.push(createFiles.popup(zip, 'browserAction'))
+    }
 
-  if (response.page_action) {
-    manifestJson.page_action = {
-      'default_icon': {
-        '64': 'icons/icon.png'
-      },
-      'default_popup': 'pageAction/index.html',
-      'default_title': manifestJson.name
+    if (response.page_action) {
+      manifestJson.page_action = {
+        'default_icon': {
+          '64': 'icons/icon.png'
+        },
+        'default_popup': 'pageAction/index.html',
+        'default_title': manifestJson.name
+      }
+      createorPromises.push(createFiles.popup(zip, 'pageAction'))
     }
-    createorPromises.push(createFiles.popup(zip, 'pageAction'))
   }
 
   if (response.options_ui) {

@@ -19,6 +19,15 @@ createFiles.bg = zip => {
     })
 }
 
+createFiles.sw = zip => {
+  return fetch('assets/bg.js')
+    .then(res => res.text())
+    .then(data => {
+      zip.file('service_worker.js', data)
+      return true
+    })
+}
+
 createFiles.cs = zip => {
   return fetch('assets/cs.js')
     .then(res => res.text())
